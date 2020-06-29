@@ -1,0 +1,17 @@
+{
+  "name": "pouchdb-hypercore",
+  "version": "1.0.0",
+  "description": "Synchronize PouchDB or CouchDB with P2P Hypercores!",
+  "main": "index.js",
+  "scripts": {
+    "test": "standard && mocha && npm audit"
+  },
+  "author": "Diana Thayer <garbados@gmail.com>",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "hypercore": "^9.4.1",
+    "mocha": "^8.0.1",
+    "pouchdb": "^7.2.1",
+    "standard": "^14.3.4"
+  }
+}
