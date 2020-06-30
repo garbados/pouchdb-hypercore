@@ -1,9 +1,9 @@
 # pouchdb-hypercore
 
-[![Build Status](https://img.shields.io/travis/garbados/pouchdb-hypercore/master.svg?style=flat-square)](https://travis-ci.org/garbados/pouchdb-hypercore)
-[![Coverage Status](https://img.shields.io/coveralls/github/garbados/pouchdb-hypercore/master.svg?style=flat-square)](https://coveralls.io/github/garbados/pouchdb-hypercore?branch=master)
+[![Build Status](https://travis-ci.com/garbados/pouchdb-hypercore.svg?branch=master)](https://travis-ci.com/garbados/pouchdb-hypercore)
+[![Coverage Status](https://coveralls.io/repos/github/garbados/pouchdb-hypercore/badge.svg?branch=master)](https://coveralls.io/github/garbados/pouchdb-hypercore?branch=master)
 [![Stability](https://img.shields.io/badge/stability-experimental-orange.svg?style=flat-square)](https://nodejs.org/api/documentation.html#documentation_stability_index)
-[![NPM Version](https://img.shields.io/npm/v/pouchdb-hypercore.svg?style=flat-square)](https://www.npmjs.com/package/pouchdb-hypercore)
+[![NPM Version](https://img.shields.io/npm/v/@garbados/pouchdb-hypercore.svg?style=flat-square)](https://www.npmjs.com/package/@garbados/pouchdb-hypercore)
 [![JS Standard Style](https://img.shields.io/badge/code%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/feross/standard)
 
 A [PouchDB](https://pouchdb.com/) plugin that maps records in [hypercores](https://github.com/hypercore-protocol/hypercore), a P2P append-only datastructure, to and from a PouchDB or CouchDB instance. The plugin allows you to write changes to a writable hypercore, and also to follow changes to non-writable hypercores. In this way, you can build up a database from multiple P2P sources.

@@ -1,6 +1,6 @@
 {
   "name": "@garbados/pouchdb-hypercore",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Synchronize PouchDB or CouchDB with P2P Hypercores!",
   "main": "index.js",
   "scripts": {
