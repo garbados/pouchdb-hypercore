@@ -1,2 +1,8 @@
+sudo: false
+notifications:
+  email: false
 language: node_js
 node_js: stable
+after_success:
+- npx nyc npm test
+- npx nyc report --reporter=text-lcov | npx coveralls
