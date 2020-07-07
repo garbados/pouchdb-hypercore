@@ -6,7 +6,7 @@
 [![NPM Version](https://img.shields.io/npm/v/@garbados/pouchdb-hypercore.svg?style=flat-square)](https://www.npmjs.com/package/@garbados/pouchdb-hypercore)
 [![JS Standard Style](https://img.shields.io/badge/code%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/feross/standard)
 
-A [PouchDB](https://pouchdb.com/) plugin that maps records in [hypercores](https://github.com/hypercore-protocol/hypercore), a P2P append-only datastructure, to and from a PouchDB or CouchDB instance. The plugin allows you to write changes to a writable hypercore, and also to follow changes to non-writable hypercores. In this way, you can build up a database from multiple P2P sources.
+A [PouchDB](https://pouchdb.com/) plugin that maps records in [hypercores](https://github.com/hypercore-protocol/hypercore), a P2P append-only datastructure, to a PouchDB or CouchDB instance. The plugin allows you to follow changes in hypercores locally and remotely. In this way, you can build up a database from multiple P2P sources.
 
 As an example, here's how to set up a PouchDB instance to follow a hypercore:
 
@@ -19,36 +19,19 @@ async function main () {
   // setup
   const hypercore = Hypercore('.example_hypercore')
   const pouch = new PouchDB('.example_pouchdb')
-  pouch.setHypercore(hypercore)
-  // pouchdb -> hypercore
-  await pouch.put({ _id: 'hello-world' })
-  const docBuffer = await new Promise((resolve, reject) => {
-    this.hyper.get(0, { wait: true }, (err, id) => {
-      if (err) { reject(err) } else { resolve(id) }
-    })
-  })
-  const doc1 = JSON.parse(docBuffer.toString('utf8'))
-  console.log(doc1)
-  >>> {_id: 'hello-world', _rev: '1-...'}
+  await pouch.fromHypercore(hypercore)
+  const key = hypercore.key.toString('hex')
   // hypercore -> pouchdb
-  await new Promise((resolve, reject) => {
-    this.hyper.append(JSON.stringify({ _id: 'hello-galaxy' }), (err) => {
-      if (err) { reject(err) } else { resolve() }
+  const seq = await new Promise((resolve, reject) => {
+    this.hyper.append(JSON.stringify({ hello: 'world' }), (err, seq) => {
+      if (err) { reject(err) } else { resolve(seq) }
     })
   })
   await new Promise((resolve) => { setTimeout(resolve, 100) })
-  const doc2 = await this.pouch.get('hello-galaxy')
-  console.log(doc2)
-  >>> {_id: 'hello-galaxy', _rev: '1-...'}
+  const doc = await this.pouch.get(`${key}@${seq}`)
+  console.log(doc)
+  >>> {_id: '{key}@{seq}', _rev: '1-...', hello: 'world' }
 }
-```
-
-The plugin mirrors a hypercore feed with a PouchDB database, so that changes in one are reflected in the other.
-
-To follow non-writable hypercores, use `.followHypercore`:
-
-```javascript
-pouch.followHypercore(remoteCore)
 ```
 
 ## Why?
@@ -57,7 +40,13 @@ PouchDB and CouchDB are, at this point, enduring and reliable projects with powe
 
 The [Hypercore protocol](https://hypercore-protocol.org/) has been used to build fascinating P2P projects like [Beaker](https://beakerbrowser.com/) and [Cabal](https://cabal.chat/). In essence, it gives you *mutable torrents* by way of a distributed append-only log. In fact it uses the same tracker infrastructure as torrents.
 
-By mirroring the two, it becomes easy to make CouchDB databases P2P, or to leverage CouchDB's query system to index and explore P2P datasets.
+By mirroring hypercores in this way, it becomes easy to produce hypercore-to-http gateways, or to utilize CouchDB's advanced indexing and querying systems.
+
+### Why not map changes to writable hypercores?
+
+This feature might return in the future, but for now it is unclear how to do this. Documents produced from hypercore log entries use `{key}@{seq}` as their ID, but it is impossible to determine that sequence number `{seq}` before appending the entry to the hypercore. There is also the matter of a hypercore and a PouchDB instance falling out of sync, which further complicates the task.
+
+If you'd like to propose a solution, please chime in with an [issue](https://github.com/garbados/pouchdb-hypercore/issues).
 
 ## Install
 
@@ -71,47 +60,25 @@ $ npm i @garbados/pouchdb-hypercore
 
 The plugin adds or modifies the following methods of PouchDB instances:
 
-### `setHypercore(hypercore)`
-
-Sets a hypercore to mirror database changes to and from. The hypercore must be writable. For non-writable feeds, use `followHypercore`.
-
-```javascript
-const pouch = new PouchDB(...)
-pouch.setHypercore(hypercore)
-```
-
-### `followHypercore(hypercore)`
+### `async pouch.fromHypercore(hypercore)`
 
 Streams changes from a hypercore into the database. Does not write changes to the hypercore.
 
 ```javascript
 const pouch = new PouchDB(...)
-pouch.followHypercore(hypercore)
+pouch.fromHypercore(hypercore)
+  .then(() => { /* ready */ })
 ```
 
-### `bulkDocs(...)`
+### `async pouch.fromMultifeed(hypercore)`
 
-By wrapping this method, database updates -- puts, posts, and deletes -- are intercepted so they can be written to the associated hypercore. This function will not work until `setHypercore` has been run.
+Streams changes from all the hypercores in a [multifeed](https://github.com/kappa-db/multifeed) into the database. Does not write changes to the hypercore.
 
-### `destroy(...)`
-
-When the database would be destroyed, any associated hypercores are closed. To destroy
-
-### `hypercore`
-
-A property for accessing the hypercore set with `setHypercore`.
-
-### `hypercores`
-
-An array of the hypercores being followed with `followHypercore`.
-
-### `hyperstream`
-
-A readable stream of updates from the hypercore set with `setHypercore`. Used to map changes to the database.
-
-### `hyperstreams`
-
-An array of readable streams from hypercores set with `followHypercore`. Used to map changes to the database.
+```javascript
+const pouch = new PouchDB(...)
+pouch.fromMultifeed(multifeed)
+  .then(() => { /* ready */ })
+```
 
 ## Test
 

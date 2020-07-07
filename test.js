@@ -1,13 +1,15 @@
 /* global describe, it, before, after */
 
 const assert = require('assert').strict
-const fs = require('fs')
-const PouchDB = require('pouchdb')
 const Hypercore = require('hypercore')
+const multifeed = require('multifeed')
+const PouchDB = require('pouchdb')
 const PouchHypercore = require('.')
+const rimraf = require('rimraf')
 
 const TEST_POUCH = '.testpouch'
 const TEST_HYPER = '.testhyper'
+const TEST_MULTI = '.testmulti'
 
 describe('pouchdb-hypercore', function () {
   before(async function () {
@@ -24,77 +26,56 @@ describe('pouchdb-hypercore', function () {
       await new Promise((resolve) => { hypercore.ready(resolve) })
       this.hypercores.push(hypercore)
     }
+    // set up multicore
+    this.multifeed = multifeed(TEST_MULTI)
     // set up pouchdb-hypercore
-    this.pouch.setHypercore(this.hyper)
-    for (const hypercore of this.hypercores) {
-      this.pouch.followHypercore(hypercore)
+    for (const hypercore of [this.hyper, ...this.hypercores]) {
+      this.pouch.fromHypercore(hypercore)
     }
+    this.pouch.fromMultifeed(this.multifeed)
   })
 
   after(async function () {
-    async function _destroyHyper (hypercore) {
-      await new Promise((resolve, reject) => {
-        hypercore.destroyStorage((err) => {
-          if (err) {
-            if (err.code === 'ENOENT') {
-              // already missing
-              resolve()
-            } else {
-              reject(err)
-            }
-          } else {
-            resolve()
-          }
-        })
-      })
-    }
     // destroy pouchdb, readable streams
     await this.pouch.destroy()
     // destroy hypercore
-    await _destroyHyper(this.hyper)
-    fs.rmdirSync(TEST_HYPER)
+    rimraf.sync(TEST_HYPER)
     // destroy hypercores
     for (let i = 0; i < 3; i++) {
-      const hypercore = this.hypercores[i]
-      await _destroyHyper(hypercore)
-      fs.rmdirSync(`${TEST_HYPER}-${i}`)
+      rimraf.sync(`${TEST_HYPER}-${i}`)
     }
+    // destroy multifeed
+    await new Promise((resolve) => {
+      this.multifeed.close(resolve)
+    })
+    rimraf.sync(TEST_MULTI)
   })
 
   it('should work', function () {
     // assert that pouchdb-hypercore is set up
-    assert(this.pouch.hypercore.readable)
-  })
-
-  it('should write updates to the hypercore', async function () {
-    await this.pouch.put({ _id: 'hello' })
-    const id = await new Promise((resolve, reject) => {
-      this.hyper.get(0, { wait: true }, (err, id) => {
-        if (err) { reject(err) } else { resolve(id) }
-      })
+    this.pouch._hypercores.forEach((feed) => {
+      assert(feed.readable)
     })
-    const doc = JSON.parse(id.toString('utf8'))
-    assert.equal(doc._id, 'hello')
   })
 
   it('should follow updates to the hypercore', async function () {
-    await new Promise((resolve, reject) => {
-      this.hyper.append(JSON.stringify({ _id: 'goodbye' }), (err) => {
-        if (err) { reject(err) } else { resolve() }
+    const seq = await new Promise((resolve, reject) => {
+      this.hyper.append(JSON.stringify({ hello: 'goodbye' }), function (err, seq) {
+        if (err) { reject(err) } else { resolve(seq) }
       })
     })
     await new Promise((resolve) => { setTimeout(resolve, 100) })
-    const doc = await this.pouch.get('goodbye')
-    assert.equal(doc._id, 'goodbye')
+    const key = this.hyper.key.toString('hex')
+    const doc = await this.pouch.get(`${key}@${seq}`)
+    assert.equal(doc.hello, 'goodbye')
   })
 
   it('should follow updates to read-only cores', async function () {
-    this.timeout(0)
     for (let i = 0; i < 3; i++) {
       const hypercore = this.hypercores[i]
       // write
       await new Promise((resolve, reject) => {
-        hypercore.append(JSON.stringify({ _id: `${i}` }), (err) => {
+        hypercore.append(JSON.stringify({ i: `${i}` }), (err) => {
           if (err) { reject(err) } else { resolve() }
         })
       })
@@ -102,10 +83,29 @@ describe('pouchdb-hypercore', function () {
     // wait
     await new Promise((resolve) => { setTimeout(resolve, 100) })
     // verify
-    const allDocs = await this.pouch.allDocs({ keys: ['0', '1', '2'] })
-    assert.equal(allDocs.rows.length, 3)
-    for (const doc of allDocs.rows) {
-      assert.equal(doc.error, undefined)
-    }
+    const allDocs = await this.pouch.allDocs({ include_docs: true })
+    const docs = allDocs.rows.filter(({ doc }) => {
+      if (!doc.i) { return false }
+      const i = parseInt(doc.i)
+      return i < 3 && i >= 0
+    })
+    assert.equal(docs.length, 3)
+  })
+
+  it('should follow updates from multifeed feeds', async function () {
+    const local = await new Promise((resolve, reject) => {
+      this.multifeed.writer('local', (err, feed) => {
+        return err ? reject(err) : resolve(feed)
+      })
+    })
+    const key = local.key.toString('hex')
+    const seq = await new Promise((resolve, reject) => {
+      local.append(JSON.stringify({ hello: 'goodbye' }), function (err, seq) {
+        if (err) { reject(err) } else { resolve(seq) }
+      })
+    })
+    await new Promise((resolve) => { setTimeout(resolve, 100) })
+    const doc = await this.pouch.get(`${key}@${seq}`)
+    assert.equal(doc.hello, 'goodbye')
   })
 })
