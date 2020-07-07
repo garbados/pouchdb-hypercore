@@ -22,6 +22,7 @@ module.exports = {
   fromMultifeed: async function (multifeed, opts = {}) {
     if (!this._multifeeds) { this._multifeeds = [] }
     this._multifeeds.push(multifeed)
+    await new Promise((resolve) => { multifeed.ready(resolve) })
     const fromHypercore = async (feed) => { await this.fromHypercore(feed, opts) }
     const promises = multifeed.feeds().map(fromHypercore)
     multifeed.on('feed', fromHypercore)
